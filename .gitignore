@@ -8,3 +8,8 @@ private/
 state/
 logs/
 uv.lock
+
+dist/
+*.egg-info/
+.ruff_cache/
+.coverage

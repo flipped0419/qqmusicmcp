@@ -1,20 +1,35 @@
 """Tencent Music official qqmusic-skills v0.0.3 API implementation."""
+
 from __future__ import annotations
 from typing import Any
 from .secrets_config import api_key
 import httpx
 
 SKILL_VERSION = "0.0.3"
-ENDPOINTS = {"/discover/search", "/discover/daily-mix", "/discover/radio",
-             "/discover/ai-playlists", "/charts", "/charts/detail",
-             "/playlists/detail", "/me/report"}
+ENDPOINTS = {
+    "/discover/search",
+    "/discover/daily-mix",
+    "/discover/radio",
+    "/discover/ai-playlists",
+    "/charts",
+    "/charts/detail",
+    "/playlists/detail",
+    "/me/report",
+}
 
-class OfficialError(RuntimeError): pass
+
+class OfficialError(RuntimeError):
+    pass
+
 
 class OfficialClient:
-    def __init__(self, key: str | None = None, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(
+        self, key: str | None = None, transport: httpx.AsyncBaseTransport | None = None
+    ):
         self.key = key if key is not None else api_key()
-        self.http = httpx.AsyncClient(base_url="https://a.y.qq.com", timeout=25, transport=transport)
+        self.http = httpx.AsyncClient(
+            base_url="https://a.y.qq.com", timeout=25, transport=transport
+        )
 
     async def close(self):
         await self.http.aclose()
@@ -25,9 +40,11 @@ class OfficialClient:
         if not self.key:
             raise OfficialError("QQMUSIC_API_KEY is not configured on the server")
         try:
-            resp = await self.http.post(path,
+            resp = await self.http.post(
+                path,
                 json={"params": params or {}, "comm": {"skill_version": SKILL_VERSION}},
-                headers={"Authorization": f"Bearer {self.key}"})
+                headers={"Authorization": f"Bearer {self.key}"},
+            )
             resp.raise_for_status()
             data = resp.json()
         except (httpx.HTTPError, ValueError):

@@ -1,0 +1,54 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --extra test --python ${{ matrix.python-version }}
+      - run: uv run --no-sync pytest -q
+      - run: uv build
+      - name: Verify build artifacts
+        run: |
+          test -f dist/qqmusicmcp-0.1.0a1.tar.gz
+          test -f dist/qqmusicmcp-0.1.0a1-py3-none-any.whl
+          python - <<'PYTHON'
+          from zipfile import ZipFile
+          with ZipFile('dist/qqmusicmcp-0.1.0a1-py3-none-any.whl') as archive:
+              assert 'qqmusicmcp/licenses/baoozak-MIT.txt' in archive.namelist()
+              assert 'qqmusicmcp/THIRD_PARTY_NOTICES.md' in archive.namelist()
+          PYTHON
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv tool run --from ruff==0.14.7 ruff check --select E4,E7,E9,F src tests scripts
+  repository-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify release metadata, license, and tracking policy
+        run: |
+          test -s LICENSE
+          test -s THIRD_PARTY_NOTICES.md
+          test -s licenses/baoozak-MIT.txt
+          ! git ls-files | grep -E '(^|/)(\.env$|credentials\.json$|write_probe\.json$|\.qqmusicmcp/|uv\.lock$)'
