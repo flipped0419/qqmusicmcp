@@ -104,6 +104,7 @@ async def test_probe_mock_disposable_playlist(example, monkeypatch, tmp_path):
     library, tracks, backend=example
     monkeypatch.setenv('QQMUSIC_ENABLE_WRITES','true')
     called=[]
+    monkeypatch.setattr(writes, 'probe_valid', lambda: False)
     monkeypatch.setattr(writes,'_save_probe',lambda: called.append('success'))
     result=await writes.run_temporary_probe(backend)
     assert result['status']=='passed'
@@ -116,3 +117,56 @@ async def test_no_probe_without_flag(example, monkeypatch):
     monkeypatch.delenv('QQMUSIC_ENABLE_WRITES',raising=False)
     with pytest.raises(PermissionError):
         await writes.run_temporary_probe(example[2])
+
+
+def test_migrate_expired_legacy_probe_without_remote_writes(tmp_path, monkeypatch):
+    import time
+    path = tmp_path / 'write_probe.json'
+    monkeypatch.setattr(writes, 'proof_path', lambda: path)
+    monkeypatch.setattr(writes, 'account_fingerprint', lambda: 'same-account')
+    old = {'schema': 1, 'account': 'same-account',
+           'expires_at': time.time() - 60}
+    path.write_text(json.dumps(old))
+    path.chmod(0o600)
+    assert not writes.probe_valid()
+    assert writes.migrate_legacy_probe() == 'migrated_without_new_probe'
+    assert writes.probe_valid()
+    record = json.loads(path.read_text())
+    assert record['schema'] == 2
+    assert 'expires_at' not in record
+    assert record['protocol'] == writes.PROBE_PROTOCOL
+
+
+def test_probe_record_is_account_and_protocol_bound(tmp_path, monkeypatch):
+    path = tmp_path / 'write_probe.json'
+    monkeypatch.setattr(writes,'proof_path',lambda: path)
+    monkeypatch.setattr(writes,'account_fingerprint',lambda:'my-account')
+    writes._save_probe()
+    assert writes.probe_valid()
+    monkeypatch.setattr(writes,'account_fingerprint',lambda:'another-account')
+    assert not writes.probe_valid()
+    monkeypatch.setattr(writes,'account_fingerprint',lambda:'my-account')
+    monkeypatch.setattr(writes,'PROBE_PROTOCOL','musicu-playlist-v2')
+    assert not writes.probe_valid()
+
+
+def test_untrusted_world_readable_probe_is_rejected(tmp_path, monkeypatch):
+    path = tmp_path / 'write_probe.json'
+    monkeypatch.setattr(writes,'proof_path',lambda: path)
+    monkeypatch.setattr(writes,'account_fingerprint',lambda:'account')
+    writes._save_probe()
+    path.chmod(0o644)
+    assert not writes.probe_valid()
+
+
+@pytest.mark.asyncio
+async def test_repeated_probe_skips_without_qqmusic_mutation(example, monkeypatch):
+    _, _, backend = example
+    monkeypatch.setenv('QQMUSIC_ENABLE_WRITES','true')
+    monkeypatch.setattr(writes,'probe_valid',lambda:True)
+    class RefuseAnyWrite:
+        async def create_playlist(self, name): raise AssertionError('must not write')
+        async def edit_song(self, *args): raise AssertionError('must not write')
+        async def delete_playlist(self, *args): raise AssertionError('must not write')
+    result = await writes.run_temporary_probe(RefuseAnyWrite())
+    assert result['status'] == 'already_verified'

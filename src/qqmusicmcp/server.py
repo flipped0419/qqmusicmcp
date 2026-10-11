@@ -23,7 +23,7 @@ async def qqmusic_status():
     return {"official_api_configured": bool(api_key()),
             "personal_library_configured": bool(session_cookie()),
             "writes_enabled_in_config": writes_enabled(),
-            "writes_operational": probe_valid(), "official_skill_version": "0.0.3"}
+            "writes_operational": writes_enabled() and probe_valid(), "official_skill_version": "0.0.3"}
 
 @mcp.tool()
 async def qqmusic_search(keyword: str, type: str = "0", page: int = 0):
@@ -101,9 +101,9 @@ async def qqmusic_preview_write(operation: str, name: str = "", directory_id: in
 
 @mcp.tool()
 async def qqmusic_probe_write():
-    """Show whether a recent human-approved local write probe passed. Never initiates a write."""
+    """Show whether the one-time capability proof is valid. Never initiates a write."""
     return {"write_flag_enabled": writes_enabled(), "probe_passed": probe_valid(),
-            "instruction": "The disposable playlist probe is a separate TTY-only local script."}
+            "instruction": "A successful probe is stored per account and protocol; it never expires simply with time. No routine retesting."}
 
 @mcp.tool()
 async def qqmusic_apply_write(confirmation_token: str):

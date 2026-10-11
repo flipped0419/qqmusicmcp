@@ -87,3 +87,33 @@ needed by guarded `qqmusic_preview_write`. The targeted lookup uses the
 QQ Music `musicu.fcg` detail API and was read-only tested on QwenPaw.
 The old website search endpoint returned HTTP 500 in this environment and
 is therefore **not exposed** as a tool. No music account writes were performed.
+
+
+## One-time capability proof (avoid QQ Music recovery-playlist pollution)
+
+QQ Music can retain a deleted test playlist in its recovery history. **Do not
+run a disposable-playlist write probe for routine changes.** The former
+15-minute expiry was replaced by a durable, account-bound and protocol-bound
+validation record. A saved successful probe is reusable across server restarts
+and future playlist changes; normal operations perform read-before-write and
+read-after-write checks instead of creating and deleting a test playlist.
+
+For existing installs that already ran the old temporary-playlist test, migrate
+the local record **without writing anything to QQ Music**:
+
+```bash
+cd /app/working/shellmcp-workspace/qqmusicmcp
+env -u PYTHONPATH uv run python scripts/migrate_probe.py
+```
+
+Routine modifying tools still require the explicit server-level flag
+`QQMUSIC_ENABLE_WRITES=true` (false by default) and a per-operation
+preview ticket. A preview ticket is a replay-protection/state-consistency
+mechanism, **not a cryptographic proof that a human approved the action**:
+configure the ChatGPT App's tool approvals and require user confirmation
+before sensitive operations. Deleting non-empty playlists and directly
+modifying the My Likes directory remain blocked.
+
+If the QQ Music write protocol changes, or the signed-in account changes,
+the proof becomes invalid and write operations fail closed. Diagnose
+compatibility before considering another temporary-playlist probe.
