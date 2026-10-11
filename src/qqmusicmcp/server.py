@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from .official import OfficialClient
 from .secrets_config import api_key, session_cookie
 from .library import personal_playlists, playlist_tracks, liked_songs
-from .writes import WriteGate, writes_enabled
+from .writes import WriteGate, writes_enabled, probe_valid
 
 mcp = FastMCP("QQ Music Unified MCP")
 gate = WriteGate()
@@ -23,7 +23,7 @@ async def qqmusic_status():
     return {"official_api_configured": bool(api_key()),
             "personal_library_configured": bool(session_cookie()),
             "writes_enabled_in_config": writes_enabled(),
-            "writes_operational": False, "official_skill_version": "0.0.3"}
+            "writes_operational": probe_valid(), "official_skill_version": "0.0.3"}
 
 @mcp.tool()
 async def qqmusic_search(keyword: str, type: str = "0", page: int = 0):
@@ -89,19 +89,21 @@ async def qqmusic_liked_songs():
     return await liked_songs()
 
 @mcp.tool()
-async def qqmusic_preview_write(operation: str, name: str = "", directory_id: int = 0, song_id: int = 0):
-    """Preview a proposed change (create playlist, add/remove song, delete playlist). Never writes."""
-    return gate.preview(operation, name, directory_id, song_id)
+async def qqmusic_preview_write(operation: str, name: str = "", directory_id: int = 0,
+                                song_id: int = 0, song_type: int = 0):
+    """Preview one playlist change, including state verification; no mutation. My Likes is protected."""
+    return await gate.preview(operation, name, directory_id, song_id, song_type)
 
 @mcp.tool()
 async def qqmusic_probe_write():
-    """Write probe placeholder. Does NOT mutate even with writes configured."""
-    return {"status": "not_implemented", "message": "Temporary playlist lifecycle must be tested before enabling writes"}
+    """Show whether a recent human-approved local write probe passed. Never initiates a write."""
+    return {"write_flag_enabled": writes_enabled(), "probe_passed": probe_valid(),
+            "instruction": "The disposable playlist probe is a separate TTY-only local script."}
 
 @mcp.tool()
 async def qqmusic_apply_write(confirmation_token: str):
-    """Write application is disabled in v0.1.0 even with explicit confirmation."""
-    gate.apply(confirmation_token)
+    """Apply a preview ticket after a separately approved local probe, then verify by reading back."""
+    return await gate.apply(confirmation_token)
 
 def main():
     mcp.run(transport="stdio")

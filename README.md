@@ -63,3 +63,18 @@ env -u PYTHONPATH uv run python scripts/test_personal_read.py
 ```
 
 This flow accesses undocumented QQ Music web endpoints, which may reject browser cookies from a different IP, require renewed authentication, or stop functioning. It does **not** enable account writes.
+
+
+## Experimental guarded playlist writes (not yet production-verified)
+
+Only operations on *ordinary personal playlists* are supported: create, add a song, remove a song, delete an **empty** playlist. `My Likes` (directory 201) is protected against mutations. This API is unofficial and may break without warning.
+
+All writes are disabled unless **all three** conditions hold:
+
+1. The MCP server is started with `QQMUSIC_ENABLE_WRITES=true` (default **false**).
+2. A person runs `env -u PYTHONPATH uv run python scripts/test_write_probe.py` in an **interactive terminal** and explicitly types the full confirmation phrase. The probe will **temporarily create a playlist, add a song from My Likes, verify, remove it, then delete the temporary playlist**. This really modifies the QQ Music account, so ask permission before running it. It may leave a temporary playlist behind if cleanup fails.
+3. The recent successful probe (valid for 15 minutes) is followed by a 5-minute one-use preview ticket from `qqmusic_preview_write`, then `qqmusic_apply_write`. The target playlist is re-read before applying and the result is verified via another read. No batch changes or persistent rollback are implemented yet.
+
+**Do not run the probe or set the write flag just to perform read-only testing.** The test suite only uses mocks and never calls real write endpoints.
+
+Technical attribution: `src/qqmusicmcp/write_backend.py` adapts the account-write protocol from [baoozak/qqmusic-mcp](https://github.com/baoozak/qqmusic-mcp) under MIT (see `src/qqmusicmcp/vendor/LICENSE.baoozak`). No GPL-licensed source is incorporated.
