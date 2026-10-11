@@ -24,9 +24,12 @@ async def test_no_arbitrary_endpoint():
         with pytest.raises(ValueError): await c.request("/unexpected")
     finally: await c.close()
 
-def test_my_likes_not_mutated():
-    with pytest.raises(ValueError): WriteGate().preview("remove_song",directory_id=201,song_id=1)
-    with pytest.raises(PermissionError): WriteGate().apply("nonexistent")
+@pytest.mark.asyncio
+async def test_my_likes_not_mutated():
+    with pytest.raises(ValueError):
+        await WriteGate().preview("remove_song", directory_id=201, song_id=1)
+    with pytest.raises(ValueError):
+        await WriteGate().apply("nonexistent")
 
 @pytest.mark.asyncio
 async def test_mcp_registered_tools():
