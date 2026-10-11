@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from mcp.server.fastmcp import FastMCP
 from .official import OfficialClient
-from .secrets_config import api_key
+from .secrets_config import api_key, session_cookie
 from .library import personal_playlists, playlist_tracks, liked_songs
 from .writes import WriteGate, writes_enabled
 
@@ -21,7 +21,7 @@ async def call(path, params=None):
 async def qqmusic_status():
     """Show provider availability without revealing authentication secrets."""
     return {"official_api_configured": bool(api_key()),
-            "personal_library_configured": bool(os.getenv("QQMUSIC_COOKIE")),
+            "personal_library_configured": bool(session_cookie()),
             "writes_enabled_in_config": writes_enabled(),
             "writes_operational": False, "official_skill_version": "0.0.3"}
 

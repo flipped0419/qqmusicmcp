@@ -42,3 +42,24 @@ env -u PYTHONPATH uv run python scripts/configure_api_key.py
 The script prompts for the key without echoing it. It refuses non-interactive input and stores the key in a mode `0600` file under `/app/working/shellmcp-workspace/.qqmusicmcp/credentials.json` on the persistent volume, **outside the public Git checkout**. The service loads this key automatically; the `QQMUSIC_API_KEY` environment variable overrides it. Never paste your key into GitHub, a chat, a command argument, or a web log. Anyone with root access to the host can still access the file; the script is only intended to prevent accidental disclosure.
 
 Once set, run `env -u PYTHONPATH uv run qqmusicmcp` from the repo directory or use a supervising MCP client. Real API queries require this key, while personal library reads require a separate authenticated session.
+
+## Connect your personal library (read-only)
+
+The Tencent Skill API Key does **not** grant browser-session access to personal playlist-management endpoints. This optional feature requires a QQ Music **browser Cookie** (sensitive account credential). Never paste it into ChatGPT or GitHub.
+
+1. On your own desktop, sign into [QQ Music](https://y.qq.com/) in the browser. Open Developer Tools (F12), Network, reload the page, select an authenticated request to `y.qq.com` or `c.y.qq.com`. Under Request Headers, copy **only the value** of the `Cookie` header. Do not copy the whole request, and never share it online. You may need to use a desktop browser to access the site.
+2. Open an interactive terminal on your trusted QwenPaw server and run:
+
+```bash
+cd /app/working/shellmcp-workspace/qqmusicmcp
+env -u PYTHONPATH uv run python scripts/configure_cookie.py
+```
+
+3. Paste the Cookie once at the hidden terminal prompt. It is stored in the existing mode 0600 private credentials file **outside the repository**.
+4. To test without showing song names, Cookie, or account ID:
+
+```bash
+env -u PYTHONPATH uv run python scripts/test_personal_read.py
+```
+
+This flow accesses undocumented QQ Music web endpoints, which may reject browser cookies from a different IP, require renewed authentication, or stop functioning. It does **not** enable account writes.

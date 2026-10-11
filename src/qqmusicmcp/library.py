@@ -4,14 +4,14 @@ Code inspired by baoozak/qqmusic-mcp's MIT-licensed client. No Windows DPAPI.
 Personal session credential never leaves the server except to QQ Music itself.
 """
 from __future__ import annotations
-import os
 import re
 import httpx
+from .secrets_config import session_cookie
 
 class LibraryError(RuntimeError): pass
 
 def read_cookie():
-    raw = os.getenv("QQMUSIC_COOKIE", "")
+    raw = session_cookie()
     if not raw:
         raise LibraryError("QQMUSIC_COOKIE is not configured")
     if "\n" in raw or "\r" in raw:

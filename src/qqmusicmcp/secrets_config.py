@@ -18,15 +18,12 @@ def credentials_path() -> Path:
     override = os.getenv('QQMUSIC_SECRETS_FILE', '').strip()
     return Path(override).expanduser() if override else DEFAULT_SECRETS_FILE
 
-def api_key() -> str:
-    env_value = os.getenv('QQMUSIC_API_KEY', '')
-    if env_value:
-        return env_value
+def _private_credentials() -> dict[str, str]:
     path = credentials_path()
     try:
         info = path.lstat()
     except FileNotFoundError:
-        return ''
+        return {}
     if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
         raise CredentialsError('QQ Music credentials file must be regular and private (0600)')
     if path.parent.stat().st_mode & 0o077:
@@ -35,6 +32,17 @@ def api_key() -> str:
         data = json.loads(path.read_text(encoding='utf-8'))
     except (OSError, ValueError):
         raise CredentialsError('QQ Music credentials file cannot be read') from None
-    if not isinstance(data, dict) or not isinstance(data.get('qqmusic_api_key', ''), str):
+    if not isinstance(data, dict) or any(
+        not isinstance(data.get(name, ''), str)
+        for name in ('qqmusic_api_key', 'qqmusic_cookie')
+    ):
         raise CredentialsError('QQ Music credentials file is not valid')
-    return data.get('qqmusic_api_key', '')
+    return data
+
+
+def api_key() -> str:
+    return os.getenv('QQMUSIC_API_KEY') or _private_credentials().get('qqmusic_api_key', '')
+
+
+def session_cookie() -> str:
+    return os.getenv('QQMUSIC_COOKIE') or _private_credentials().get('qqmusic_cookie', '')
