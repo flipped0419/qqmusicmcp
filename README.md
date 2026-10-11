@@ -79,6 +79,11 @@ All writes are disabled unless **all three** conditions hold:
 
 Technical attribution: `src/qqmusicmcp/write_backend.py` adapts the account-write protocol from [baoozak/qqmusic-mcp](https://github.com/baoozak/qqmusic-mcp) under MIT (see `src/qqmusicmcp/vendor/LICENSE.baoozak`). No GPL-licensed source is incorporated.
 
-## Searching songs for the write tools
+## Resolving song IDs for the write tools
 
-`qqmusic_search_library_songs(keyword, page=1)` queries the QQ Music website's undocumented search endpoint and returns `song_id` and `song_type` needed for playlist additions. This is read-only and separate from the official Skill search. It has only been mock-tested until validated against the authenticated user's session.
+Search via the official `qqmusic_search` tool to get `songMid`; then call
+`qqmusic_resolve_song_mid(song_mid)` for the numeric `song_id` and `song_type`
+needed by guarded `qqmusic_preview_write`. The targeted lookup uses the
+QQ Music `musicu.fcg` detail API and was read-only tested on QwenPaw.
+The old website search endpoint returned HTTP 500 in this environment and
+is therefore **not exposed** as a tool. No music account writes were performed.

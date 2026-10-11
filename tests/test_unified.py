@@ -108,19 +108,22 @@ async def test_reject_truncated_liked_export(monkeypatch):
         await library.liked_songs()
 
 
+
 @pytest.mark.asyncio
-async def test_search_library_song_ids(monkeypatch):
+async def test_resolve_song_mid_with_mock_http(monkeypatch):
     from qqmusicmcp import library
-    async def mock_get(url, params):
-        assert 'client_search_cp' in url
-        assert params['w'] == '一格格'
-        return {'data': {'song': {'list': [
-            {'id': 91, 'type': 0, 'mid': 'A123', 'name': '一格格',
-             'singer': [{'name': '卫兰'}]},
-            {'id': 'invalid', 'mid': 'B', 'name': 'skip'},
-        ]}}}
-    monkeypatch.setattr(library,'get_json', mock_get)
-    result = await library.search_library_songs('一格格')
-    assert result['songs'] == [{'song_id':91,'song_type':0,'mid':'A123','name':'一格格','singers':['卫兰']}]
+    monkeypatch.setattr(library, 'read_cookie', lambda: 'uin=o98765; p_skey=sample')
+    def handler(req):
+        assert req.url.host == 'u.y.qq.com'
+        assert req.method == 'POST'
+        request_body = json.loads(req.content)
+        assert request_body['req_0']['param']['song_mid'] == 'AB123'
+        return httpx.Response(200, json={'req_0': {
+            'code': 0, 'data': {'track_info': {
+                'id': 12345, 'type': 0, 'name': 'Mock', 'singer': [{'name': 'Artist'}]}}
+        }})
+    result=await library.song_write_identity('AB123', transport=httpx.MockTransport(handler))
+    assert result=={'mid':'AB123','song_id':12345,'song_type':0,
+                    'name':'Mock','singers':['Artist']}
     with pytest.raises(ValueError):
-        await library.search_library_songs('')
+        await library.song_write_identity('../../invalid')

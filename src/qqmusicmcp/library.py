@@ -75,40 +75,48 @@ async def liked_songs():
         raise LibraryError("My Likes appears truncated; refusing incomplete export")
     return {"playlist": liked, "songs": songs}
 
-async def search_library_songs(keyword: str, page: int = 1) -> dict:
-    """Search the QQ Music web catalog for numeric song IDs needed for playlist writes.
+async def song_write_identity(song_mid: str, transport: httpx.AsyncBaseTransport | None = None) -> dict:
+    """Resolve an official-search MID into the numerical ID needed for safe playlist additions.
 
-    Read-only. Not guaranteed stable; use the official search tool for general
-    discovery and this specialized search for target-song IDs.
+    QQ Music's old website search endpoint can return HTTP 500. A targeted
+    musicu song-detail lookup avoids depending on the broken catalog endpoint.
     """
-    if not keyword.strip() or len(keyword) > 100 or not 1 <= page <= 100:
-        raise ValueError('keyword length must be 1-100 and page 1-100')
-    response = await get_json('https://c.y.qq.com/soso/fcgi-bin/client_search_cp', {
-        'w': keyword, 'p': page, 'n': 20, 'format': 'json', 't': 0,
-        'catZhida': 1, 'remoteplace': 'txt.yqq.song',
-    })
-    song_section = response.get('data', {}).get('song') if isinstance(response.get('data'), dict) else None
-    if not isinstance(song_section, dict) or not isinstance(song_section.get('list'), list):
-        raise LibraryError('QQ Music catalog search response changed')
-    songs = []
-    for item in song_section['list']:
-        if not isinstance(item, dict):
-            continue
-        try:
-            song_id = int(item.get('id') or item.get('songid') or 0)
-            song_type = int(item.get('type') or item.get('songtype') or 0)
-        except (ValueError, TypeError):
-            continue
-        if song_id <= 0 or song_type < 0:
-            continue
-        singers = item.get('singer')
-        songs.append({
-            'song_id': song_id,
-            'song_type': song_type,
-            'mid': str(item.get('mid') or item.get('songmid') or ''),
-            'name': str(item.get('name') or item.get('songname') or ''),
-            'singers': [str(s.get('name') or s.get('singername') or '')
-                        for s in singers if isinstance(s, dict)]
-                       if isinstance(singers, list) else [],
-        })
-    return {'page': page, 'songs': songs, 'has_more': len(songs) == 20}
+    if not re.fullmatch(r'[0-9A-Za-z]{1,128}', song_mid):
+        raise ValueError('invalid song MID')
+    cookie = read_cookie()
+    uin = uin_from_cookie(cookie)
+    try:
+        async with httpx.AsyncClient(timeout=25, transport=transport, headers={
+            'Cookie': cookie, 'Referer': 'https://y.qq.com/', 'User-Agent': 'Mozilla/5.0',
+        }) as client:
+            response = await client.post('https://u.y.qq.com/cgi-bin/musicu.fcg',
+                params={'format': 'json'},
+                json={
+                    'comm': {'ct': 24, 'cv': 0, 'uin': uin},
+                    'req_0': {'module': 'music.pf_song_detail_svr',
+                              'method': 'get_song_detail_yqq',
+                              'param': {'song_mid': song_mid}},
+                })
+            response.raise_for_status()
+            body = response.json()
+    except (httpx.HTTPError, ValueError):
+        raise LibraryError('QQ Music song detail lookup failed') from None
+    req = body.get('req_0') if isinstance(body, dict) else None
+    if not isinstance(req, dict) or req.get('code') != 0:
+        raise LibraryError('QQ Music song detail API declined the request')
+    data = req.get('data')
+    track = data.get('track_info') if isinstance(data, dict) else None
+    if not isinstance(track, dict):
+        raise LibraryError('QQ Music song detail response has changed')
+    try:
+        sid = int(track.get('id', 0))
+        song_type = int(track.get('type', 0))
+    except (TypeError, ValueError):
+        raise LibraryError('QQ Music detail has no numeric song identity') from None
+    if sid <= 0 or song_type < 0:
+        raise LibraryError('QQ Music detail has an invalid numeric song identity')
+    singers = track.get('singer')
+    return {'mid': song_mid, 'song_id': sid, 'song_type': song_type,
+            'name': str(track.get('name') or ''),
+            'singers': [str(s.get('name') or '') for s in singers if isinstance(s, dict)]
+                       if isinstance(singers, list) else []}
