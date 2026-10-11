@@ -106,3 +106,21 @@ async def test_reject_truncated_liked_export(monkeypatch):
     monkeypatch.setattr(library, 'get_json', get_json)
     with pytest.raises(library.LibraryError, match='truncated'):
         await library.liked_songs()
+
+
+@pytest.mark.asyncio
+async def test_search_library_song_ids(monkeypatch):
+    from qqmusicmcp import library
+    async def mock_get(url, params):
+        assert 'client_search_cp' in url
+        assert params['w'] == '一格格'
+        return {'data': {'song': {'list': [
+            {'id': 91, 'type': 0, 'mid': 'A123', 'name': '一格格',
+             'singer': [{'name': '卫兰'}]},
+            {'id': 'invalid', 'mid': 'B', 'name': 'skip'},
+        ]}}}
+    monkeypatch.setattr(library,'get_json', mock_get)
+    result = await library.search_library_songs('一格格')
+    assert result['songs'] == [{'song_id':91,'song_type':0,'mid':'A123','name':'一格格','singers':['卫兰']}]
+    with pytest.raises(ValueError):
+        await library.search_library_songs('')

@@ -4,7 +4,7 @@ import os
 from mcp.server.fastmcp import FastMCP
 from .official import OfficialClient
 from .secrets_config import api_key, session_cookie
-from .library import personal_playlists, playlist_tracks, liked_songs
+from .library import personal_playlists, playlist_tracks, liked_songs, search_library_songs
 from .writes import WriteGate, writes_enabled, probe_valid
 
 mcp = FastMCP("QQ Music Unified MCP")
@@ -87,6 +87,11 @@ async def qqmusic_personal_playlist_tracks(playlist_id: int):
 async def qqmusic_liked_songs():
     """Read My Likes without changing hearts."""
     return await liked_songs()
+
+@mcp.tool()
+async def qqmusic_search_library_songs(keyword: str, page: int = 1):
+    """Find numeric QQ Music song IDs and types used for guarded playlist additions; read-only."""
+    return await search_library_songs(keyword, page)
 
 @mcp.tool()
 async def qqmusic_preview_write(operation: str, name: str = "", directory_id: int = 0,

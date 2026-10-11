@@ -78,3 +78,7 @@ All writes are disabled unless **all three** conditions hold:
 **Do not run the probe or set the write flag just to perform read-only testing.** The test suite only uses mocks and never calls real write endpoints.
 
 Technical attribution: `src/qqmusicmcp/write_backend.py` adapts the account-write protocol from [baoozak/qqmusic-mcp](https://github.com/baoozak/qqmusic-mcp) under MIT (see `src/qqmusicmcp/vendor/LICENSE.baoozak`). No GPL-licensed source is incorporated.
+
+## Searching songs for the write tools
+
+`qqmusic_search_library_songs(keyword, page=1)` queries the QQ Music website's undocumented search endpoint and returns `song_id` and `song_type` needed for playlist additions. This is read-only and separate from the official Skill search. It has only been mock-tested until validated against the authenticated user's session.

@@ -74,3 +74,41 @@ async def liked_songs():
     if liked["song_count"] and len(songs) < int(liked["song_count"]):
         raise LibraryError("My Likes appears truncated; refusing incomplete export")
     return {"playlist": liked, "songs": songs}
+
+async def search_library_songs(keyword: str, page: int = 1) -> dict:
+    """Search the QQ Music web catalog for numeric song IDs needed for playlist writes.
+
+    Read-only. Not guaranteed stable; use the official search tool for general
+    discovery and this specialized search for target-song IDs.
+    """
+    if not keyword.strip() or len(keyword) > 100 or not 1 <= page <= 100:
+        raise ValueError('keyword length must be 1-100 and page 1-100')
+    response = await get_json('https://c.y.qq.com/soso/fcgi-bin/client_search_cp', {
+        'w': keyword, 'p': page, 'n': 20, 'format': 'json', 't': 0,
+        'catZhida': 1, 'remoteplace': 'txt.yqq.song',
+    })
+    song_section = response.get('data', {}).get('song') if isinstance(response.get('data'), dict) else None
+    if not isinstance(song_section, dict) or not isinstance(song_section.get('list'), list):
+        raise LibraryError('QQ Music catalog search response changed')
+    songs = []
+    for item in song_section['list']:
+        if not isinstance(item, dict):
+            continue
+        try:
+            song_id = int(item.get('id') or item.get('songid') or 0)
+            song_type = int(item.get('type') or item.get('songtype') or 0)
+        except (ValueError, TypeError):
+            continue
+        if song_id <= 0 or song_type < 0:
+            continue
+        singers = item.get('singer')
+        songs.append({
+            'song_id': song_id,
+            'song_type': song_type,
+            'mid': str(item.get('mid') or item.get('songmid') or ''),
+            'name': str(item.get('name') or item.get('songname') or ''),
+            'singers': [str(s.get('name') or s.get('singername') or '')
+                        for s in singers if isinstance(s, dict)]
+                       if isinstance(singers, list) else [],
+        })
+    return {'page': page, 'songs': songs, 'has_more': len(songs) == 20}
