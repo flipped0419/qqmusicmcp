@@ -1,119 +1,114 @@
 # qqmusicmcp
 
-Unified QQ Music MCP (Python / Linux / stdio), deployed and tested on QwenPaw.
+A unified **QQ Music MCP server** for Linux, built with Python 3.11+ and the MCP Python SDK. It combines the [official Tencent Music QQ Music Skill](https://github.com/tencentmusic/qqmusic-skills) HTTP APIs with optional personal-library tools based on unofficial web endpoints.
+
+The MCP server uses **stdio** and runs under a local MCP client or a separately configured transport/tunnel. It does not require a particular VPS provider, hosting platform, desktop environment, or public inbound port.
 
 ## Features
 
-Official Tencent Music Skill 0.0.3 API: search (songs/albums/playlists/MVs/artists), daily mix, radio, AI playlist suggestions, charts, chart detail, public playlist detail, listening reports.
+| Feature | Source | Status |
+| --- | --- | --- |
+| Song, artist, album, and playlist search | Official QQ Music Skill API v0.0.3 | Working; requires API Key |
+| Daily recommendations, radio, charts, public playlists, listening reports | Official Skill | Working; requires API Key |
+| Read personal playlists and “My Likes” | Unofficial QQ Music web APIs | Working with an authenticated browser session; experimental |
+| Resolve song MID to numeric song ID/type | Unofficial song detail API | Read-only |
+| Create a playlist, add/remove a song, delete an empty playlist | Unofficial web APIs | Implemented, guarded by explicit opt-in; write protocol tested with a temporary playlist |
+| Modify “My Likes” / change liked-song hearts | — | **Not supported** |
+| Automatic rollback and batch playlist editing | — | Not yet implemented |
 
-Optional third-party personal library: list personal playlists, read playlist songs, export My Likes using a session cookie. **Unofficial API; may break when QQ Music changes.**
+Unofficial APIs may change or be restricted by QQ Music without notice. The AI interpretation endpoint uses SSE and is not yet implemented here.
 
-Write planning: preview only. **No account mutation is implemented in v0.1.0, regardless of flags.** The next milestone is a disposable-playlist probe + verified writes + rollback.
+## Requirements and installation
 
-## Install and run
+- Linux with Python **3.11 or later**
+- [uv](https://docs.astral.sh/uv/)
+- Network access to the QQ Music official and web APIs
 
 ```bash
+git clone https://github.com/flipped0419/qqmusicmcp.git
+cd qqmusicmcp
 uv sync --extra test
 uv run pytest -q
+```
+
+Start the stdio MCP server with your MCP client or run it directly:
+
+```bash
 uv run qqmusicmcp
 ```
 
-Run in an environment without external `PYTHONPATH` that injects conflicting MCP versions (on QwenPaw: `env -u PYTHONPATH uv run ...`). `qqmusicmcp` uses stdio; a local MCP supervisor or Secure Tunnel starts it. Nothing listens publicly.
+Configure the client's command to run `uv run qqmusicmcp` with its working directory set to this repository (or invoke the installed executable by absolute path). Standard output is reserved for MCP messages.
 
-Set `QQMUSIC_API_KEY` in the server's private environment (get one at https://y.qq.com/n/ryqq_v2/qqmusic_skills). `QQMUSIC_COOKIE` is optional for personal library reading. **Do not share any key, Cookie, or Tunnel secret in chat or commit to Git.** `QQMUSIC_ENABLE_WRITES=false` is the safe default.
+If your host sets a global `PYTHONPATH` that injects incompatible packages, launch with `env -u PYTHONPATH uv run qqmusicmcp`. This is an **environment-specific workaround**, not a requirement of Linux or this project.
 
-## Sources
+## Credentials
 
-- Tencent Music official [qqmusic-skills](https://github.com/tencentmusic/qqmusic-skills) (Apache-2.0): independently implemented protocol per v0.0.3 docs.
-- [baoozak/qqmusic-mcp](https://github.com/baoozak/qqmusic-mcp) (MIT): reading protocol is adapted in `library.py`. Original Windows authentication is not used.
-- [L-1124/QQMusicApi](https://github.com/L-1124/QQMusicApi) (GPL-3.0-or-later): evaluated, not copied/imported in this version.
+The official API Key and the optional QQ Music browser session Cookie are independent credentials.
 
-The official AI interpretation endpoint is SSE and not included yet. Respect QQ Music's rate limits, terms of service and music copyright.
+- Create an official API Key from [QQ Music Skill](https://y.qq.com/n/ryqq_v2/qqmusic_skills).
+- For personal-library access, log into [QQ Music](https://y.qq.com/) in your browser, then find the authenticated request's **Cookie header value** in your browser's Network developer tools. A Cookie grants access to your account: keep it private, and rotate/revoke it if exposed.
 
-## Configure the official API key on QwenPaw
-
-Open an **interactive terminal** on the QwenPaw host, then execute:
+The following scripts must run in a trusted **interactive Linux terminal** and will hide the value being entered:
 
 ```bash
-cd /app/working/shellmcp-workspace/qqmusicmcp
-env -u PYTHONPATH uv run python scripts/configure_api_key.py
+uv run python scripts/configure_api_key.py
+uv run python scripts/configure_cookie.py
 ```
 
-The script prompts for the key without echoing it. It refuses non-interactive input and stores the key in a mode `0600` file under `/app/working/shellmcp-workspace/.qqmusicmcp/credentials.json` on the persistent volume, **outside the public Git checkout**. The service loads this key automatically; the `QQMUSIC_API_KEY` environment variable overrides it. Never paste your key into GitHub, a chat, a command argument, or a web log. Anyone with root access to the host can still access the file; the script is only intended to prevent accidental disclosure.
+The default private credentials file is **outside the source tree**:
 
-Once set, run `env -u PYTHONPATH uv run qqmusicmcp` from the repo directory or use a supervising MCP client. Real API queries require this key, while personal library reads require a separate authenticated session.
+- When running from a source checkout: `../.qqmusicmcp/credentials.json` (relative to the repository root).
+- When running an installed package: `${XDG_STATE_HOME:-~/.local/state}/qqmusicmcp/credentials.json`.
+- To choose a different location, set `QQMUSIC_SECRETS_FILE` to the desired absolute file path.
 
-## Connect your personal library (read-only)
+The scripts use directory mode `0700` and file mode `0600`. You can also supply `QQMUSIC_API_KEY` and `QQMUSIC_COOKIE` through your process environment; these override the stored values. **Never commit keys, Cookies, access tokens, or private login records to Git.** Credentials in a private file are still accessible to a privileged host administrator.
 
-The Tencent Skill API Key does **not** grant browser-session access to personal playlist-management endpoints. This optional feature requires a QQ Music **browser Cookie** (sensitive account credential). Never paste it into ChatGPT or GitHub.
+### Read-only verification
 
-1. On your own desktop, sign into [QQ Music](https://y.qq.com/) in the browser. Open Developer Tools (F12), Network, reload the page, select an authenticated request to `y.qq.com` or `c.y.qq.com`. Under Request Headers, copy **only the value** of the `Cookie` header. Do not copy the whole request, and never share it online. You may need to use a desktop browser to access the site.
-2. Open an interactive terminal on your trusted QwenPaw server and run:
+The script below prints only status and counts, never your credentials, song names, or account ID:
 
 ```bash
-cd /app/working/shellmcp-workspace/qqmusicmcp
-env -u PYTHONPATH uv run python scripts/configure_cookie.py
+uv run python scripts/test_personal_read.py
 ```
 
-3. Paste the Cookie once at the hidden terminal prompt. It is stored in the existing mode 0600 private credentials file **outside the repository**.
-4. To test without showing song names, Cookie, or account ID:
+In your MCP client, call `qqmusic_status` to check which providers are configured without exposing secrets. For song metadata used by playlist-write tools, call `qqmusic_search` first, then `qqmusic_resolve_song_mid` with a selected result's `songMid`.
+
+## Playlist writes and safety
+
+Writing to QQ Music is **disabled by default**, even when personal-library reading works.
+
+Normal write operations require all of the following:
+
+1. An operator explicitly starts the MCP process with `QQMUSIC_ENABLE_WRITES=true`.
+2. A **one-time successful account/protocol capability proof** exists. This proof does not expire merely because time passes.
+3. An individual operation is prepared with `qqmusic_preview_write` and then executed with its one-use, five-minute `confirmation_token` through `qqmusic_apply_write`. Before changing an existing playlist, the target state is read again; results are verified by reading again after the write.
+
+The proof is bound to the authenticated account and known write protocol version. If either changes, writes are blocked until compatibility is investigated.
+
+**Do not repeat the test probe for routine writes.** The probe creates, edits, and deletes a temporary playlist; QQ Music may retain deleted test playlists in its recovery history. An already validated account only needs its existing proof.
+
+For a *first-time installation*, a human may explicitly authorize a one-off test in an interactive terminal:
 
 ```bash
-env -u PYTHONPATH uv run python scripts/test_personal_read.py
+QQMUSIC_ENABLE_WRITES=true uv run python scripts/test_write_probe.py
 ```
 
-This flow accesses undocumented QQ Music web endpoints, which may reject browser cookies from a different IP, require renewed authentication, or stop functioning. It does **not** enable account writes.
+Read and confirm its prompt before proceeding: the script really changes the account and may leave a disposable playlist behind if cleanup fails.
 
-
-## Experimental guarded playlist writes (not yet production-verified)
-
-Only operations on *ordinary personal playlists* are supported: create, add a song, remove a song, delete an **empty** playlist. `My Likes` (directory 201) is protected against mutations. This API is unofficial and may break without warning.
-
-All writes are disabled unless **all three** conditions hold:
-
-1. The MCP server is started with `QQMUSIC_ENABLE_WRITES=true` (default **false**).
-2. A person runs `env -u PYTHONPATH uv run python scripts/test_write_probe.py` in an **interactive terminal** and explicitly types the full confirmation phrase. The probe will **temporarily create a playlist, add a song from My Likes, verify, remove it, then delete the temporary playlist**. This really modifies the QQ Music account, so ask permission before running it. It may leave a temporary playlist behind if cleanup fails.
-3. The recent successful probe (valid for 15 minutes) is followed by a 5-minute one-use preview ticket from `qqmusic_preview_write`, then `qqmusic_apply_write`. The target playlist is re-read before applying and the result is verified via another read. No batch changes or persistent rollback are implemented yet.
-
-**Do not run the probe or set the write flag just to perform read-only testing.** The test suite only uses mocks and never calls real write endpoints.
-
-Technical attribution: `src/qqmusicmcp/write_backend.py` adapts the account-write protocol from [baoozak/qqmusic-mcp](https://github.com/baoozak/qqmusic-mcp) under MIT (see `src/qqmusicmcp/vendor/LICENSE.baoozak`). No GPL-licensed source is incorporated.
-
-## Resolving song IDs for the write tools
-
-Search via the official `qqmusic_search` tool to get `songMid`; then call
-`qqmusic_resolve_song_mid(song_mid)` for the numeric `song_id` and `song_type`
-needed by guarded `qqmusic_preview_write`. The targeted lookup uses the
-QQ Music `musicu.fcg` detail API and was read-only tested on QwenPaw.
-The old website search endpoint returned HTTP 500 in this environment and
-is therefore **not exposed** as a tool. No music account writes were performed.
-
-
-## One-time capability proof (avoid QQ Music recovery-playlist pollution)
-
-QQ Music can retain a deleted test playlist in its recovery history. **Do not
-run a disposable-playlist write probe for routine changes.** The former
-15-minute expiry was replaced by a durable, account-bound and protocol-bound
-validation record. A saved successful probe is reusable across server restarts
-and future playlist changes; normal operations perform read-before-write and
-read-after-write checks instead of creating and deleting a test playlist.
-
-For existing installs that already ran the old temporary-playlist test, migrate
-the local record **without writing anything to QQ Music**:
+To upgrade a successful record created by older versions **without touching QQ Music**, run:
 
 ```bash
-cd /app/working/shellmcp-workspace/qqmusicmcp
-env -u PYTHONPATH uv run python scripts/migrate_probe.py
+uv run python scripts/migrate_probe.py
 ```
 
-Routine modifying tools still require the explicit server-level flag
-`QQMUSIC_ENABLE_WRITES=true` (false by default) and a per-operation
-preview ticket. A preview ticket is a replay-protection/state-consistency
-mechanism, **not a cryptographic proof that a human approved the action**:
-configure the ChatGPT App's tool approvals and require user confirmation
-before sensitive operations. Deleting non-empty playlists and directly
-modifying the My Likes directory remain blocked.
+The explicit write flag remains off unless you enable it for the running MCP process. Never leave it enabled in a publicly reachable, unauthenticated service. A preview ticket checks state and limits replay; **it does not prove that a human approved the request**. Require explicit user approval in the connecting MCP client before sensitive operations.
 
-If the QQ Music write protocol changes, or the signed-in account changes,
-the proof becomes invalid and write operations fail closed. Diagnose
-compatibility before considering another temporary-playlist probe.
+The “My Likes” directory (ID `201`) is protected against direct edits and deletion. Non-empty playlist deletion is prohibited. Automatic rollback, cross-process tickets, and batch transactions have **not** been implemented, so treat any uncertain write outcome as requiring a read-only inspection before attempting again.
+
+## Sources and licensing
+
+- [tencentmusic/qqmusic-skills](https://github.com/tencentmusic/qqmusic-skills) — Apache-2.0. Official HTTP protocol implemented from published Skill documentation.
+- [baoozak/qqmusic-mcp](https://github.com/baoozak/qqmusic-mcp) — MIT. Unofficial personal-library and write protocol adapted here; upstream MIT notice is preserved at `src/qqmusicmcp/vendor/LICENSE.baoozak`.
+- [L-1124/QQMusicApi](https://github.com/L-1124/QQMusicApi) — GPL-3.0-or-later. Evaluated but **not** copied or imported into this project.
+
+This software is intended for authorized personal use. Follow QQ Music's terms of service, rate limits, copyright restrictions, and applicable law.

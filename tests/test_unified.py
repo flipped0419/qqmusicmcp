@@ -127,3 +127,11 @@ async def test_resolve_song_mid_with_mock_http(monkeypatch):
                     'name':'Mock','singers':['Artist']}
     with pytest.raises(ValueError):
         await library.song_write_identity('../../invalid')
+
+
+def test_default_credentials_sibling_of_checkout():
+    from pathlib import Path
+    from qqmusicmcp.secrets_config import DEFAULT_SECRETS_FILE
+    project_dir = Path(__file__).resolve().parents[1]
+    assert DEFAULT_SECRETS_FILE == project_dir.parent / '.qqmusicmcp' / 'credentials.json'
+    assert project_dir not in DEFAULT_SECRETS_FILE.parents

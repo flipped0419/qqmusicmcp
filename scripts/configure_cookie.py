@@ -1,6 +1,6 @@
 """Store the optional QQ Music browser Cookie without echo or shell history.
 
-Run interactively on the QwenPaw server. Cookie is never printed back.
+Run interactively on the Linux host. Cookie is never printed back.
 """
 from __future__ import annotations
 import getpass
