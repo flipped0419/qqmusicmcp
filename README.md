@@ -1,5 +1,7 @@
 # qqmusicmcp
 
+**Languages:** English | [简体中文](README.zh-CN.md)
+
 **Experimental / Alpha · Unofficial QQ Music MCP for Linux (Python 3.11+)**
 
 A single [Model Context Protocol](https://modelcontextprotocol.io/) stdio server providing the Tencent Music *official Skill HTTP APIs* alongside optional, **unofficial** QQ Music personal-library operations. **Not affiliated with, authorized by, or endorsed by Tencent Music.**
