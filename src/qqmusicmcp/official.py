@@ -1,7 +1,7 @@
 """Tencent Music official qqmusic-skills v0.0.3 API implementation."""
 from __future__ import annotations
-import os
 from typing import Any
+from .secrets_config import api_key
 import httpx
 
 SKILL_VERSION = "0.0.3"
@@ -13,7 +13,7 @@ class OfficialError(RuntimeError): pass
 
 class OfficialClient:
     def __init__(self, key: str | None = None, transport: httpx.AsyncBaseTransport | None = None):
-        self.key = key if key is not None else os.getenv("QQMUSIC_API_KEY", "")
+        self.key = key if key is not None else api_key()
         self.http = httpx.AsyncClient(base_url="https://a.y.qq.com", timeout=25, transport=transport)
 
     async def close(self):
